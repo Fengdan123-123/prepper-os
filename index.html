@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="tactical">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>生存狂 OS · 家庭韧性系统 v3</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --px:2px;
+  --bg:#080b08; --bg2:#0b110b; --panel:#0f150f; --panel2:#141c14; --line:#26351f;
+  --line2:#1a241a; --ink:#d3ebd3; --dim:#7f9a7f; --accent:#9dff6b; --accent2:#5fd93f;
+  --warn:#ffb020; --danger:#ff5252; --blue:#5ec8ff; --purple:#c79bff; --gold:#ffd75e;
+}
+html[data-theme="wasteland"]{
+  --bg:#120d08; --bg2:#17110a; --panel:#1b140c; --panel2:#22190f; --line:#4a3520;
+  --line2:#2c2013; --ink:#f0dcc0; --dim:#a08a6a; --accent:#ffb84d; --accent2:#ff8f2e;
+  --blue:#8fd0ff; --danger:#ff6b3d; --gold:#ffd75e;
+}
+html[data-theme="night"]{
+  --bg:#05070f; --bg2:#080c18; --panel:#0b1120; --panel2:#101828; --line:#1e3050;
+  --line2:#16233a; --ink:#cfe3ff; --dim:#7590b0; --accent:#7ad4ff; --accent2:#48b6ee;
+  --danger:#ff6b8a; --warn:#ffc857; --gold:#ffe27a;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#030403; color:var(--ink);
+  font-family:"Courier New",Consolas,"Noto Sans Mono CJK SC",monospace;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+#phone{
+  position:relative;width:100%;max-width:430px;height:100dvh;max-height:940px;
+  background:var(--bg);display:flex;flex-direction:column;overflow:hidden;
+  border-left:var(--px) solid var(--line);border-right:var(--px) solid var(--line);
+  box-shadow:0 0 0 4px #000, 0 0 40px rgba(0,0,0,.9) inset;
+}
+#phone::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:99;opacity:.22;
+  background:
+    repeating-linear-gradient(180deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px),
+    radial-gradient(circle at 50% 0%,rgba(255,255,255,.05),transparent 60%);
+}
+#phone::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:98;opacity:.08;
+  background-image:radial-gradient(rgba(255,255,255,.14) 1px,transparent 1px);
+  background-size:4px 4px;
+}
+header{
+  flex:0 0 auto;padding:9px 10px;border-bottom:var(--px) solid var(--line);
+  background:linear-gradient(180deg,var(--bg2),var(--bg));display:flex;align-items:center;gap:8px;
+  position:relative;z-index:2;
+}
+.logo{font-size:12px;letter-spacing:2px;color:var(--accent);text-shadow:2px 2px 0 rgba(0,0,0,.8)}
+.logo b{color:#fff}
+.hdr-right{margin-left:auto;display:flex;gap:5px;align-items:center}
+.chip{font-size:10px;padding:2px 6px;border:var(--px) solid var(--line);background:var(--panel2);color:var(--dim)}
+.chip b{color:var(--accent)}
+.iconbtn{background:var(--panel2);border:var(--px) solid var(--line);color:var(--dim);padding:3px 6px;font-size:11px}
+main{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:10px;position:relative;z-index:1}
+main::-webkit-scrollbar{width:6px}main::-webkit-scrollbar-thumb{background:var(--line)}
+.px-card{
+  position:relative;background:var(--panel);border:var(--px) solid var(--line);
+  padding:9px;margin-bottom:9px;
+  box-shadow:0 0 0 2px #000, 5px 5px 0 0 rgba(0,0,0,.55);
+  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+}
+.px-card::before{
+  content:"";position:absolute;top:0;right:0;width:10px;height:10px;
+  background:var(--line);clip-path:polygon(0 0,100% 100%,100% 0);
+}
+.px-card h3{
+  font-size:11px;letter-spacing:1.5px;color:var(--accent);margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.px-card h3 .tag{margin-left:auto;font-size:9px;color:var(--dim);letter-spacing:0}
+.row{display:flex;gap:8px;align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center}
+.muted{color:var(--dim)}.tiny{font-size:10px}.small{font-size:11px}.grow{flex:1}
+.hero{display:flex;gap:12px;align-items:center}
+.ring{position:relative;width:100px;height:100px;flex:0 0 auto}
+.ring svg{transform:rotate(-90deg);display:block}
+.ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .num b{font-size:25px;line-height:1;color:#fff}
+.ring .num span{font-size:9px;color:var(--dim);letter-spacing:1px}
+.bar{height:9px;background:#050805;border:var(--px) solid var(--line2);position:relative;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;transition:width .35s steps(10);
+  background:repeating-linear-gradient(90deg,var(--accent) 0 6px,transparent 6px 8px)}
+.bar.warn>i{background:repeating-linear-gradient(90deg,var(--warn) 0 6px,transparent 6px 8px)}
+.bar.danger>i{background:repeating-linear-gradient(90deg,var(--danger) 0 6px,transparent 6px 8px)}
+.list{display:flex;flex-direction:column;gap:5px}
+.item{display:flex;align-items:center;gap:8px;padding:7px;background:var(--panel2);
+  border:var(--px) solid var(--line2);border-left-width:3px;border-left-color:var(--line)}
+.item .meta{flex:1;min-width:0}
+.item .meta b{font-size:12px;color:#f0fff0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .meta .sub{font-size:10px;color:var(--dim);margin-top:1px}
+.badge{font-size:9px;padding:1px 5px;border:1px solid;white-space:nowrap;letter-spacing:.5px}
+.b-ok{color:var(--accent);border-color:var(--accent)}.b-warn{color:var(--warn);border-color:var(--warn)}
+.b-bad{color:var(--danger);border-color:var(--danger)}.b-info{color:var(--blue);border-color:var(--blue)}
+.b-epic{color:var(--purple);border-color:var(--purple)}.b-gold{color:var(--gold);border-color:var(--gold)}
+button{font-family:inherit;cursor:pointer}
+.btn{background:var(--panel2);color:var(--ink);border:var(--px) solid var(--line);
+  box-shadow:3px 3px 0 rgba(0,0,0,.6);padding:7px 10px;font-size:11px;letter-spacing:.5px;
+  clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(0,0,0,.6)}
+.btn.primary{background:rgba(157,255,107,.12);border-color:var(--accent);color:var(--accent)}
+.btn.danger{background:rgba(255,82,82,.12);border-color:var(--danger);color:#ff9a9a}
+.btn.ghost{background:transparent}
+.btn.mini{padding:3px 8px;font-size:10px;box-shadow:2px 2px 0 rgba(0,0,0,.6)}
+.btn.block{width:100%}
+nav{flex:0 0 auto;display:grid;grid-template-columns:repeat(5,1fr);
+  border-top:var(--px) solid var(--line);background:var(--bg2);position:relative;z-index:2}
+nav button{background:transparent;border:0;color:var(--dim);padding:6px 0 5px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;letter-spacing:.5px;position:relative}
+nav button svg{opacity:.55;filter:grayscale(.6)}
+nav button.on{color:var(--accent)}
+nav button.on svg{opacity:1;filter:none}
+nav button.on::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:22px;height:3px;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.tile{background:var(--panel2);border:var(--px) solid var(--line2);padding:9px 6px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
+.tile b{font-size:10px;color:#e9ffe9}.tile span{font-size:9px;color:var(--dim)}
+.field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.field label{font-size:10px;color:var(--dim)}
+input,select,textarea{font-family:inherit;font-size:12px;background:#050805;color:var(--ink);
+  border:var(--px) solid var(--line);padding:7px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+#modal{position:absolute;inset:0;background:rgba(0,0,0,.75);display:none;z-index:60;align-items:flex-end}
+#modal.on{display:flex}
+#modal .sheet{width:100%;max-height:86%;overflow-y:auto;background:var(--panel);
+  border-top:3px solid var(--accent);padding:12px;box-shadow:0 -6px 0 rgba(0,0,0,.6);position:relative}
+#modal .sheet h2{font-size:12px;color:var(--accent);margin-bottom:10px;letter-spacing:1.5px}
+#map{height:300px;width:100%;border:var(--px) solid var(--line);background:#050805;position:relative}
+#map .leaflet-tile{filter:brightness(.6) contrast(1.15) saturate(.7) hue-rotate(-8deg)}
+.leaflet-container{background:#050805;font-family:inherit}
+.leaflet-control-attribution{display:none!important}
+.mkdot{width:14px;height:14px;border:2px solid #000;box-shadow:0 0 0 2px currentColor}
+.empty{padding:16px;text-align:center;color:var(--dim);font-size:11px;border:2px dashed var(--line2)}
+hr{border:0;border-top:1px solid var(--line2);margin:8px 0}
+.kv{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;gap:8px}
+.kv b{color:#f0fff0;font-weight:400;text-align:right}
+.warnbox{border:2px solid var(--danger);background:rgba(255,82,82,.08);padding:7px;font-size:11px;color:#ffb3b3;margin-bottom:6px}
+.okbox{border:2px solid var(--accent2);background:rgba(157,255,107,.06);padding:7px;font-size:11px;color:#c8ffc8;margin-bottom:6px}
+.pill{font-size:9px;padding:2px 7px;border:1px solid var(--line2);color:var(--dim);cursor:pointer}
+.pill.on{color:var(--accent);border-color:var(--accent);background:rgba(157,255,107,.1)}
+.scroll-x{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;flex-wrap:nowrap}
+.scroll-x>*{flex:0 0 auto;white-space:nowrap}
+.scroll-x::-webkit-scrollbar{height:3px}.scroll-x::-webkit-scrollbar-thumb{background:var(--line)}
+canvas{display:block;margin:0 auto}
+.themeBar{display:flex;gap:6px;margin-bottom:9px}
+.themeBar button{flex:1;font-size:10px;padding:5px;border:var(--px) solid var(--line);background:var(--panel2);color:var(--dim)}
+.themeBar button.on{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="phone">
+  <header>
+    <div class="logo">生存狂<b>OS</b></div>
+    <div class="hdr-right">
+      <div class="chip">自持 <b id="hdr-days">--</b>天</div>
+      <div class="chip">评级 <b id="hdr-grade">--</b></div>
+      <button class="iconbtn" onclick="cycleTheme()">◐</button>
+    </div>
+  </header>
+  <main id="view"></main>
+  <nav id="nav"></nav>
+  <div id="modal"><div class="sheet" id="sheet"></div></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/pix.js"></script>
+<script src="js/data.js"></script>
+<script src="js/calc.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/screens1.js"></script>
+<script src="js/screens2.js"></script>
+</body>
+</html>
