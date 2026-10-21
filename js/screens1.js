@@ -79,10 +79,11 @@ function screen_supplies(){
   const items = list.map(i=>{
     const cat = CATS[i.cat] || CATS.tool;
     let expBadge = '';
-    if(i.exp!=null){
-      if(i.exp<0) expBadge = `<span class="badge b-bad">已过期</span>`;
-      else if(i.exp<=30) expBadge = `<span class="badge b-warn">${i.exp}天</span>`;
-      else expBadge = `<span class="badge b-ok">${i.exp}天</span>`;
+    const r = remainingDays(i);
+    if(r!=null){
+      if(r<0) expBadge = `<span class="badge b-bad">过期${0-r}天</span>`;
+      else if(r<=30) expBadge = `<span class="badge b-warn">${r}天</span>`;
+      else expBadge = `<span class="badge b-ok">${r}天</span>`;
     }
     const extra = i.cat==='water' ? `${round1((i.lPerUnit||0)*i.qty)}L`
                 : (i.kcalPerUnit ? `${Math.round(i.kcalPerUnit*i.qty)}kcal` : '');
@@ -111,7 +112,7 @@ function openSupply(pid){
   openSheet('物资 · '+i.name, `
     ${kv('分类', cat.name)}${kv('数量', i.qty+' '+i.unit)}
     ${kv('每单位水量', (i.lPerUnit||0)+' L')}${kv('每单位热量', (i.kcalPerUnit||0)+' kcal')}
-    ${kv('剩余保质期', (i.exp==null?'未记录':i.exp+' 天'))}${kv('备注', i.note||'—')}
+    ${kv('剩余保质期', (function(){const r=remainingDays(i);return r==null?'未记录':(r<0?'已过期 '+(0-r)+' 天':r+' 天');})())}${kv('备注', i.note||'—')}
     <div style="height:8px"></div>
     <div class="row"><button class="btn primary grow" onclick="openSupplyForm('${i.id}')">编辑</button>
     <button class="btn danger" onclick="delSupply('${i.id}')">删除</button></div>`);
@@ -138,7 +139,11 @@ function openSupplyForm(pid){
       <div class="field grow"><label>每单位水量 L</label><input id="f-l" type="number" step="0.01" value="${i?(i.lPerUnit||0):0}"></div>
       <div class="field grow"><label>每单位热量 kcal</label><input id="f-k" type="number" step="10" value="${i?(i.kcalPerUnit||0):0}"></div>
     </div>
-    <div class="field"><label>剩余保质期（天，可留空）</label><input id="f-exp" type="number" value="${i&&i.exp!=null?i.exp:''}"></div>
+    <div class="row">
+      <div class="field grow"><label>生产日期</label><input id="f-prod" type="date" value="${i&&i.prodDate?i.prodDate:todayStr()}"></div>
+      <div class="field grow"><label>保质期（天）</label><input id="f-days" type="number" value="${i&&i.expDays!=null?i.expDays:''}"></div>
+    </div>
+    <div class="tiny muted" style="margin:-2px 0 8px">填了生产日期+保质天数，以后会自动倒计时，不用再手算。</div>
     <div class="field"><label>备注</label><input id="f-note" value="${i?esc(i.note||''):''}"></div>
     <button class="btn primary block" onclick="saveSupply()">保存</button>`);
 }
@@ -158,9 +163,11 @@ function saveSupply(){
     unit: f('f-unit').value.trim()||'个',
     lPerUnit: parseFloat(f('f-l').value)||0,
     kcalPerUnit: parseFloat(f('f-k').value)||0,
-    exp: f('f-exp').value===''?null:parseInt(f('f-exp').value,10),
+    prodDate: f('f-prod').value || todayStr(),
+    expDays: f('f-days').value===''?null:parseInt(f('f-days').value,10),
     note: f('f-note').value.trim()
   };
+  if(o.expDays==null){ delete o.expDays; delete o.prodDate; }
   if(EDIT_PID){ const i = S.supplies.find(x=>x.id===EDIT_PID); if(i) Object.assign(i,o); }
   else S.supplies.push({id:uid('p'), ...o});
   save(); closeSheet(); render(); toast('已保存');
@@ -342,10 +349,42 @@ function screen_more(){
     ${kv('物资条目', S.supplies.length)}${kv('技能项', S.skills.length)}
     ${kv('地图标注', S.markers.length)}${kv('勋章', medalState().filter(m=>m.unlocked).length+' / '+MEDALS.length)}
     <div style="height:8px"></div>
+    <div class="row">
+      <button class="btn primary grow" onclick="exportData()">导出备份</button>
+      <button class="btn grow" onclick="document.getElementById('importFile').click()">导入备份</button>
+    </div>
+    <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importData(this)">
+    <div class="tiny muted" style="margin-top:6px">换手机前先导出，新手机上导入即可，数据全在你自己手里。</div>
+    <div style="height:8px"></div>
     <button class="btn danger block" onclick="resetAll()">清空全部数据（重置）</button>`)}
   `;
 }
 function resetAll(){
   if(!confirm('确定清空所有记录？')) return;
   localStorage.removeItem(DB_KEY); location.reload();
+}
+function exportData(){
+  const data = JSON.stringify(S, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '生存狂OS备份-' + todayStr() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+  toast('已导出备份文件');
+}
+function importData(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const d = JSON.parse(reader.result);
+      if(!d || !d.profile || !Array.isArray(d.supplies) || !Array.isArray(d.skills)) throw new Error('这不是生存狂OS的备份文件');
+      if(!confirm('导入会覆盖当前所有数据，确定继续？')) return;
+      S = d; load(); save(); render(); toast('导入成功');
+    }catch(e){ alert('导入失败：' + e.message); }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
