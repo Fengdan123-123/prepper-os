@@ -17,12 +17,37 @@ function load(){
   ['supplies','skills','trainings','trainingLog','drills','markers','quests','news','posts','gear'].forEach(k=>{
     if(!Array.isArray(S[k])) S[k]=[];
   });
+  migrateExpiry();
   return S;
 }
 function save(){ try{ localStorage.setItem(DB_KEY, JSON.stringify(S)); }catch(e){} }
 function uid(p){ return p+Math.random().toString(36).slice(2,8); }
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function round1(v){ return Math.round(v*10)/10; }
+
+/* ---------- 保质期：自动推算 ----------
+   存 生产日期 prodDate + 总保质天数 expDays
+   剩余天数 = expDays − 从生产日期到今天过的天数
+   老数据（只有 exp＝剩余天数）自动迁移：prodDate=今天、expDays=exp */
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function migrateExpiry(){
+  (S.supplies||[]).forEach(it=>{
+    if(it.expDays==null && it.exp!=null){
+      it.expDays = it.exp;
+      it.prodDate = todayStr();
+      delete it.exp;
+    }
+  });
+}
+function remainingDays(it){
+  if(it.expDays!=null && it.prodDate){
+    const d0 = new Date(it.prodDate + 'T00:00:00');
+    const daysGone = Math.floor((Date.now() - d0.getTime()) / 86400e3);
+    return it.expDays - daysGone;
+  }
+  if(it.exp!=null) return it.exp;
+  return null;
+}
 
 function needs(){
   const m = S.profile.members || [];
@@ -46,9 +71,10 @@ function compute(){
 
   let expiring = 0, expired = 0;
   S.supplies.forEach(it=>{
-    if(it.exp==null) return;
-    if(it.exp < 0) expired++;
-    else if(it.exp <= 30) expiring++;
+    const r = remainingDays(it);
+    if(r==null) return;
+    if(r < 0) expired++;
+    else if(r <= 30) expiring++;
   });
 
   const cats = new Set(S.supplies.map(i=>i.cat));
